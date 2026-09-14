@@ -1,0 +1,22 @@
+diff --git a/src/logic.py b/src/logic.py
+index 9bed6c4..f9960c5 100644
+--- a/src/logic.py
++++ b/src/logic.py
+@@ -57,7 +57,7 @@ class ExpenseManager:
+         rows = self.get_transactions(month, year)
+         totals = defaultdict(float)
+         for r in rows:
+-            if r["type"] == "expense":
++            if r["type"] == "income":
+                 totals[r["category"]] += r["amount"]
+         return dict(totals)
+ 
+@@ -81,7 +81,7 @@ class ExpenseManager:
+             spent = spending.get(b["category"], 0.0)
+             limit = b["limit_amount"]
+             ratio = spent / limit if limit else 0
+-            if ratio >= 1.0:
++            if ratio == 1.0:
+                 status = "exceeded"
+             elif ratio >= warn_threshold:
+                 status = "warning"

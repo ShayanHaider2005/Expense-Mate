@@ -69,6 +69,20 @@ class TestExpenseManager(unittest.TestCase):
         with self.assertRaises(ValidationError):
             self.manager.set_budget("Food", 9, 2026, 0)
 
+    # ---- Recurring transactions (adaptive maintenance) ----
+    def test_add_recurring_transaction_creates_n_entries(self):
+        ids = self.manager.add_recurring_transaction(
+            "expense", 1200, "Rent", "2026-01-31", "Monthly rent", months=3)
+        self.assertEqual(len(ids), 3)
+        rows = self.manager.get_transactions()
+        dates = sorted(r["date"] for r in rows)
+        # Feb clamps 31 -> 28 (2026 is not a leap year), Mar has 31
+        self.assertEqual(dates, ["2026-01-31", "2026-02-28", "2026-03-31"])
+
+    def test_add_recurring_transaction_rejects_nonpositive_months(self):
+        with self.assertRaises(ValidationError):
+            self.manager.add_recurring_transaction("expense", 100, "Rent", "2026-01-01", "", months=0)
+
     # ---- CSV import / export (challenging part) ----
     def test_export_then_import_round_trip(self):
         self.manager.add_transaction("expense", 40, "Travel", "2026-09-01", "Bus fare")

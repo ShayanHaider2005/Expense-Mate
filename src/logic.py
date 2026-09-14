@@ -8,9 +8,13 @@ the "challenging parts" called out in the assignment brief.
 
 import csv
 from datetime import datetime
+from calendar import monthrange
 from collections import defaultdict
 
 from db import Database
+
+VALID_TYPES = ("income", "expense")   # perfective: named constant instead of magic tuple literal
+DATE_FORMAT = "%Y-%m-%d"
 
 
 class ValidationError(Exception):
@@ -25,12 +29,12 @@ class ExpenseManager:
     # ---- Transactions -----------------------------------------------------
     def add_transaction(self, tx_type: str, amount: float, category: str,
                          date_str: str, description: str = "") -> int:
-        if tx_type not in ("income", "expense"):
+        if tx_type not in VALID_TYPES:
             raise ValidationError("Type must be 'income' or 'expense'")
         if amount <= 0:
             raise ValidationError("Amount must be positive")
         try:
-            datetime.strptime(date_str, "%Y-%m-%d")
+            datetime.strptime(date_str, DATE_FORMAT)
         except ValueError:
             raise ValidationError("Date must be in YYYY-MM-DD format")
         if not category or not category.strip():
@@ -92,6 +96,30 @@ class ExpenseManager:
                 "limit": limit, "status": status,
             })
         return alerts
+
+    # ---- Recurring transactions (adaptive maintenance, Phase 5) ------------
+    def add_recurring_transaction(self, tx_type: str, amount: float, category: str,
+                                   start_date: str, description: str, months: int) -> list:
+        """
+        Adaptive maintenance feature: users asked for a way to log a fixed
+        monthly bill (rent, subscriptions) once instead of re-entering it
+        every month. Creates `months` transactions, one per month, starting
+        at start_date, keeping the same day-of-month (clamped to the last
+        valid day for shorter months, e.g. day 31 in February).
+        """
+        if months <= 0:
+            raise ValidationError("months must be a positive integer")
+        start = datetime.strptime(start_date, DATE_FORMAT)
+        created_ids = []
+        for i in range(months):
+            month = (start.month - 1 + i) % 12 + 1
+            year = start.year + (start.month - 1 + i) // 12
+            last_day = monthrange(year, month)[1]
+            day = min(start.day, last_day)
+            date_str = f"{year:04d}-{month:02d}-{day:02d}"
+            tx_id = self.add_transaction(tx_type, amount, category, date_str, description)
+            created_ids.append(tx_id)
+        return created_ids
 
     # ---- CSV import / export -------------------------------------------------
     def export_csv(self, filepath: str, month: int = None, year: int = None):
