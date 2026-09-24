@@ -13,7 +13,7 @@ from collections import defaultdict
 
 from db import Database
 
-VALID_TYPES = ("income", "expense")   # perfective: named constant instead of magic tuple literal
+VALID_TYPES = ("income", "expense")
 DATE_FORMAT = "%Y-%m-%d"
 
 
@@ -26,16 +26,19 @@ class ExpenseManager:
     def __init__(self, db: Database = None):
         self.db = db or Database()
 
-    # ---- Transactions -----------------------------------------------------
     def add_transaction(self, tx_type: str, amount: float, category: str,
                          date_str: str, description: str = "") -> int:
         if tx_type not in VALID_TYPES:
             raise ValidationError("Type must be 'income' or 'expense'")
+        try:
+            amount = float(amount)
+        except (TypeError, ValueError):
+            raise ValidationError("Amount must be a number")
         if amount <= 0:
             raise ValidationError("Amount must be positive")
         try:
             datetime.strptime(date_str, DATE_FORMAT)
-        except ValueError:
+        except (TypeError, ValueError):
             raise ValidationError("Date must be in YYYY-MM-DD format")
         if not category or not category.strip():
             raise ValidationError("Category cannot be empty")
@@ -55,7 +58,6 @@ class ExpenseManager:
         expense = sum(r["amount"] for r in rows if r["type"] == "expense")
         return {"income": income, "expense": expense, "net": income - expense}
 
-    # ---- Category-wise analytics -------------------------------------------
     def category_breakdown(self, month: int, year: int) -> dict:
         """Returns {category_name: total_expense} for the given month."""
         rows = self.get_transactions(month, year)
@@ -65,8 +67,17 @@ class ExpenseManager:
                 totals[r["category"]] += r["amount"]
         return dict(totals)
 
-    # ---- Budgets & alerts ---------------------------------------------------
     def set_budget(self, category: str, month: int, year: int, limit_amount: float):
+        if not category or not category.strip():
+            raise ValidationError("Category cannot be empty")
+        if not 1 <= month <= 12:
+            raise ValidationError("Month must be between 1 and 12")
+        if year < 1:
+            raise ValidationError("Year must be positive")
+        try:
+            limit_amount = float(limit_amount)
+        except (TypeError, ValueError):
+            raise ValidationError("Budget limit must be a number")
         if limit_amount <= 0:
             raise ValidationError("Budget limit must be positive")
         category_id = self.db.get_or_create_category(category.strip().title())
@@ -97,7 +108,6 @@ class ExpenseManager:
             })
         return alerts
 
-    # ---- Recurring transactions (adaptive maintenance, Phase 5) ------------
     def add_recurring_transaction(self, tx_type: str, amount: float, category: str,
                                    start_date: str, description: str, months: int) -> list:
         """
@@ -109,7 +119,10 @@ class ExpenseManager:
         """
         if months <= 0:
             raise ValidationError("months must be a positive integer")
-        start = datetime.strptime(start_date, DATE_FORMAT)
+        try:
+            start = datetime.strptime(start_date, DATE_FORMAT)
+        except (TypeError, ValueError):
+            raise ValidationError("Date must be in YYYY-MM-DD format")
         created_ids = []
         for i in range(months):
             month = (start.month - 1 + i) % 12 + 1
@@ -121,7 +134,6 @@ class ExpenseManager:
             created_ids.append(tx_id)
         return created_ids
 
-    # ---- CSV import / export -------------------------------------------------
     def export_csv(self, filepath: str, month: int = None, year: int = None):
         rows = self.get_transactions(month, year)
         with open(filepath, "w", newline="", encoding="utf-8") as f:
@@ -141,19 +153,28 @@ class ExpenseManager:
         with open(filepath, "r", newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f)
             required = {"date", "type", "category", "amount"}
-            if not required.issubset(set(h.strip().lower() for h in (reader.fieldnames or []))):
+            header_map = {
+                header.strip().lower(): header
+                for header in (reader.fieldnames or [])
+                if header and header.strip()
+            }
+            if not required.issubset(header_map):
                 raise ValidationError(f"CSV must contain columns: {sorted(required)}")
             for i, row in enumerate(reader, start=2):
                 try:
+                    def value(name: str, default: str = ""):
+                        raw_value = row.get(header_map[name], default)
+                        return default if raw_value is None else raw_value
+
                     self.add_transaction(
-                        tx_type=row["type"].strip().lower(),
-                        amount=float(row["amount"]),
-                        category=row["category"],
-                        date_str=row["date"].strip(),
-                        description=row.get("description", "") or "",
+                        tx_type=value("type").strip().lower(),
+                        amount=value("amount"),
+                        category=value("category"),
+                        date_str=value("date").strip(),
+                        description=value("description").strip(),
                     )
                     imported += 1
-                except (ValidationError, ValueError, KeyError) as e:
+                except (ValidationError, TypeError, ValueError, KeyError, AttributeError) as e:
                     skipped += 1
                     errors.append(f"Row {i}: {e}")
         return {"imported": imported, "skipped": skipped, "errors": errors}

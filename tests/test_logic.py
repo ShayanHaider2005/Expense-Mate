@@ -19,7 +19,6 @@ class TestExpenseManager(unittest.TestCase):
         self.manager.db.close()
         os.unlink(self.tmpfile.name)
 
-    # ---- validation ----
     def test_add_transaction_rejects_bad_type(self):
         with self.assertRaises(ValidationError):
             self.manager.add_transaction("saving", 10, "Food", "2026-09-01")
@@ -27,6 +26,10 @@ class TestExpenseManager(unittest.TestCase):
     def test_add_transaction_rejects_negative_amount(self):
         with self.assertRaises(ValidationError):
             self.manager.add_transaction("expense", -10, "Food", "2026-09-01")
+
+    def test_add_transaction_rejects_nonnumeric_amount(self):
+        with self.assertRaises(ValidationError):
+            self.manager.add_transaction("expense", "not-a-number", "Food", "2026-09-01")
 
     def test_add_transaction_rejects_bad_date(self):
         with self.assertRaises(ValidationError):
@@ -43,25 +46,23 @@ class TestExpenseManager(unittest.TestCase):
         self.assertEqual(len(breakdown), 1)
         self.assertEqual(breakdown["Food"], 25)
 
-    # ---- summary & analytics ----
     def test_monthly_summary(self):
         self.manager.add_transaction("income", 1000, "Salary", "2026-09-01")
         self.manager.add_transaction("expense", 300, "Food", "2026-09-02")
         summary = self.manager.monthly_summary(9, 2026)
         self.assertEqual(summary, {"income": 1000, "expense": 300, "net": 700})
 
-    # ---- budget alerts (challenging part) ----
     def test_budget_alert_statuses(self):
         self.manager.set_budget("Food", 9, 2026, 100)
-        self.manager.add_transaction("expense", 50, "Food", "2026-09-01")   # 50% -> ok
+        self.manager.add_transaction("expense", 50, "Food", "2026-09-01")
         alerts = self.manager.check_budget_alerts(9, 2026)
         self.assertEqual(alerts[0]["status"], "ok")
 
-        self.manager.add_transaction("expense", 35, "Food", "2026-09-05")  # 85% -> warning
+        self.manager.add_transaction("expense", 35, "Food", "2026-09-05")
         alerts = self.manager.check_budget_alerts(9, 2026)
         self.assertEqual(alerts[0]["status"], "warning")
 
-        self.manager.add_transaction("expense", 20, "Food", "2026-09-10")  # 105% -> exceeded
+        self.manager.add_transaction("expense", 20, "Food", "2026-09-10")
         alerts = self.manager.check_budget_alerts(9, 2026)
         self.assertEqual(alerts[0]["status"], "exceeded")
 
@@ -69,21 +70,22 @@ class TestExpenseManager(unittest.TestCase):
         with self.assertRaises(ValidationError):
             self.manager.set_budget("Food", 9, 2026, 0)
 
-    # ---- Recurring transactions (adaptive maintenance) ----
+    def test_budget_rejects_empty_category(self):
+        with self.assertRaises(ValidationError):
+            self.manager.set_budget("   ", 9, 2026, 100)
+
     def test_add_recurring_transaction_creates_n_entries(self):
         ids = self.manager.add_recurring_transaction(
             "expense", 1200, "Rent", "2026-01-31", "Monthly rent", months=3)
         self.assertEqual(len(ids), 3)
         rows = self.manager.get_transactions()
         dates = sorted(r["date"] for r in rows)
-        # Feb clamps 31 -> 28 (2026 is not a leap year), Mar has 31
         self.assertEqual(dates, ["2026-01-31", "2026-02-28", "2026-03-31"])
 
     def test_add_recurring_transaction_rejects_nonpositive_months(self):
         with self.assertRaises(ValidationError):
             self.manager.add_recurring_transaction("expense", 100, "Rent", "2026-01-01", "", months=0)
 
-    # ---- CSV import / export (challenging part) ----
     def test_export_then_import_round_trip(self):
         self.manager.add_transaction("expense", 40, "Travel", "2026-09-01", "Bus fare")
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -91,7 +93,6 @@ class TestExpenseManager(unittest.TestCase):
             count = self.manager.export_csv(path)
             self.assertEqual(count, 1)
 
-            # import into a fresh manager
             fresh_db_path = os.path.join(tmpdir, "fresh.db")
             db2 = Database(fresh_db_path)
             try:
@@ -116,12 +117,23 @@ class TestExpenseManager(unittest.TestCase):
             self.assertEqual(result["skipped"], 2)
             self.assertEqual(len(result["errors"]), 2)
 
+    def test_import_csv_accepts_case_insensitive_headers(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = os.path.join(tmpdir, "headers.csv")
+            with open(path, "w", newline="") as f:
+                writer = csv.writer(f)
+                writer.writerow(["Date", "Type", "Category", "Amount", "Description"])
+                writer.writerow(["2026-09-01", "expense", "Food", "20", "groceries"])
+            result = self.manager.import_csv(path)
+            self.assertEqual(result["imported"], 1)
+            self.assertEqual(result["skipped"], 0)
+
     def test_import_csv_missing_columns_raises(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             path = os.path.join(tmpdir, "malformed.csv")
             with open(path, "w", newline="") as f:
                 writer = csv.writer(f)
-                writer.writerow(["date", "amount"])  # missing type, category
+                writer.writerow(["date", "amount"])
                 writer.writerow(["2026-09-01", "20"])
             with self.assertRaises(ValidationError):
                 self.manager.import_csv(path)
