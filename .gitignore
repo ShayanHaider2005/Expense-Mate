@@ -1,0 +1,14 @@
+# Python bytecode & cache
+__pycache__/
+*.py[cod]
+
+# Virtual environment
+venv/
+ENV/
+
+# Local database file
+data/*.db
+data/expensemate.db
+
+# VS Code settings
+.vscode/
