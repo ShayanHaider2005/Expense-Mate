@@ -47,7 +47,7 @@ class TestDatabase(unittest.TestCase):
     def test_set_budget_upsert(self):
         cat_id = self.db.get_or_create_category("Food")
         self.db.set_budget(cat_id, 9, 2026, 1000.0)
-        self.db.set_budget(cat_id, 9, 2026, 1500.0)  # update
+        self.db.set_budget(cat_id, 9, 2026, 1500.0)
         budgets = self.db.get_budgets(9, 2026)
         self.assertEqual(len(budgets), 1)
         self.assertEqual(budgets[0]["limit_amount"], 1500.0)

@@ -55,7 +55,6 @@ class Database:
         """)
         self.conn.commit()
 
-    # ---- Category CRUD -------------------------------------------------
     def get_or_create_category(self, name: str) -> int:
         cur = self.conn.cursor()
         cur.execute("SELECT id FROM categories WHERE name = ?", (name,))
@@ -71,7 +70,6 @@ class Database:
         cur.execute("SELECT * FROM categories ORDER BY name")
         return cur.fetchall()
 
-    # ---- Transaction CRUD -----------------------------------------------
     def insert_transaction(self, tx_type: str, amount: float, category_id: int,
                             date: str, description: str = "") -> int:
         cur = self.conn.cursor()
@@ -103,7 +101,6 @@ class Database:
         cur.execute(query, params)
         return cur.fetchall()
 
-    # ---- Budget CRUD ------------------------------------------------------
     def set_budget(self, category_id: int, month: int, year: int, limit_amount: float):
         cur = self.conn.cursor()
         cur.execute(

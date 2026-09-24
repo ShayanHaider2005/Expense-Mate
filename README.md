@@ -1,22 +1,54 @@
-# ExpenseMate — Personal Expense Manager
+# ExpenseMate - Personal Expense Manager
 
-A 3-tier desktop application built with Python, Tkinter, and SQLite for tracking personal finances with budget alerting and analytics[cite: 1].
+ExpenseMate is a layered desktop application for recording personal income and
+expenses. It uses Python, Tkinter, SQLite, and Matplotlib.
 
 ## Features
-* **Transactions:** Record income/expenses with validation[cite: 1, 3].
-* **Budgets:** Set monthly limits with OK/Warning/Exceeded alerts[cite: 1, 3].
-* **Analytics:** Embedded Matplotlib pie charts for spending[cite: 1, 5].
-* **CSV I/O:** Export data or import external files with row-skipping error reports[cite: 1, 3].
-* **Recurring Transactions:** Automate fixed monthly bills (e.g., rent)[cite: 1, 3].
 
-## Project Structure
-* `src/main.py`: Entry point[cite: 1, 4].
-* `src/ui.py`: Presentation layer (Tkinter GUI)[cite: 1, 5].
-* `src/logic.py`: Business logic layer (Validation, Budget alerts, CSV)[cite: 1, 3].
-* `src/db.py`: Data access layer (SQLite CRUD)[cite: 1, 2].
-* `tests/`: Automated test suite (`test_db.py`, `test_logic.py`)[cite: 1, 6, 7].
+- Add income and expense transactions with validation.
+- View transactions and delete a selected transaction.
+- Set monthly category budgets with OK, warning, and exceeded alerts.
+- Select a month and year for summaries, budgets, and analytics.
+- View expense totals by category in a pie chart.
+- Import and export transactions as CSV files.
+- Create recurring monthly transactions with end-of-month date handling.
 
-## Quick Start
-1. **Install dependency:**
-   ```bash
-   pip install matplotlib
+## Architecture
+
+The project uses a layered architecture:
+
+- `src/ui.py`: Tkinter presentation layer.
+- `src/logic.py`: validation, summaries, budgets, analytics, and CSV rules.
+- `src/db.py`: SQLite data-access layer and schema management.
+- `src/main.py`: application entry point.
+
+## Setup
+
+Use Python 3.10 or newer. From the `Expense-Mate` directory:
+
+```bash
+python -m venv .venv
+.venv\Scripts\activate
+python -m pip install -r requirements.txt
+```
+
+## Run
+
+```bash
+python src/main.py
+```
+
+The SQLite database is created automatically at `data/expensemate.db`.
+
+## Test
+
+```bash
+python -m unittest discover -s tests -p "test_*.py" -v
+```
+
+The test suite covers database CRUD, validation, summaries, budget alerts,
+recurring transactions, and CSV import/export.
+
+## Sample data
+
+`data/sample_import.csv` can be imported from the Import / Export tab.

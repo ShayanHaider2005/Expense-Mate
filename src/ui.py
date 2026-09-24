@@ -29,6 +29,7 @@ class ExpenseMateApp(tk.Tk):
         now = datetime.now()
         self.current_month = tk.IntVar(value=now.month)
         self.current_year = tk.IntVar(value=now.year)
+        self.summary_var = tk.StringVar()
 
         notebook = ttk.Notebook(self)
         notebook.pack(fill="both", expand=True)
@@ -51,7 +52,6 @@ class ExpenseMateApp(tk.Tk):
         self._build_analytics_tab()
         self._build_io_tab()
 
-    # ---------------------------------------------------------- Add tab --
     def _build_add_tab(self):
         f = self.tab_add
         labels = ["Type (income/expense)", "Amount", "Category", "Date (YYYY-MM-DD)", "Description"]
@@ -61,6 +61,17 @@ class ExpenseMateApp(tk.Tk):
             ttk.Entry(f, textvariable=self.add_vars[label], width=40).grid(row=i, column=1, padx=10, pady=8)
         ttk.Button(f, text="Add Transaction", command=self._on_add_transaction).grid(
             row=len(labels), column=0, columnspan=2, pady=15)
+
+        recurring = ttk.LabelFrame(f, text="Recurring transaction")
+        recurring.grid(row=len(labels) + 1, column=0, columnspan=2, padx=10, pady=10, sticky="ew")
+        recurring_labels = ["Type", "Amount", "Category", "Start date (YYYY-MM-DD)", "Description", "Months"]
+        self.recurring_vars = {k: tk.StringVar() for k in recurring_labels}
+        for i, label in enumerate(recurring_labels):
+            ttk.Label(recurring, text=label).grid(row=i, column=0, sticky="w", padx=10, pady=4)
+            ttk.Entry(recurring, textvariable=self.recurring_vars[label], width=35).grid(
+                row=i, column=1, padx=10, pady=4)
+        ttk.Button(recurring, text="Add recurring transactions", command=self._on_add_recurring).grid(
+            row=len(recurring_labels), column=0, columnspan=2, pady=8)
 
     def _on_add_transaction(self):
         v = self.add_vars
@@ -79,7 +90,24 @@ class ExpenseMateApp(tk.Tk):
         except (ValidationError, ValueError) as e:
             messagebox.showerror("Invalid input", str(e))
 
-    # --------------------------------------------------------- List tab --
+    def _on_add_recurring(self):
+        v = self.recurring_vars
+        try:
+            count = len(self.manager.add_recurring_transaction(
+                tx_type=v["Type"].get().strip().lower(),
+                amount=float(v["Amount"].get()),
+                category=v["Category"].get(),
+                start_date=v["Start date (YYYY-MM-DD)"].get().strip(),
+                description=v["Description"].get(),
+                months=int(v["Months"].get()),
+            ))
+            messagebox.showinfo("Success", f"Created {count} recurring transactions.")
+            for var in v.values():
+                var.set("")
+            self._refresh_list()
+        except (ValidationError, ValueError) as e:
+            messagebox.showerror("Invalid input", str(e))
+
     def _build_list_tab(self):
         f = self.tab_list
         cols = ("id", "date", "type", "category", "amount", "description")
@@ -88,7 +116,11 @@ class ExpenseMateApp(tk.Tk):
             self.tree.heading(c, text=c.capitalize())
             self.tree.column(c, width=120)
         self.tree.pack(fill="both", expand=True, padx=10, pady=10)
-        ttk.Button(f, text="Refresh", command=self._refresh_list).pack(pady=5)
+        actions = ttk.Frame(f)
+        actions.pack(pady=5)
+        ttk.Button(actions, text="Refresh", command=self._refresh_list).pack(side="left", padx=5)
+        ttk.Button(actions, text="Delete selected", command=self._on_delete_transaction).pack(side="left", padx=5)
+        ttk.Label(f, textvariable=self.summary_var).pack(pady=5)
         self._refresh_list()
 
     def _refresh_list(self):
@@ -97,8 +129,23 @@ class ExpenseMateApp(tk.Tk):
         for r in self.manager.get_transactions():
             self.tree.insert("", "end", values=(r["id"], r["date"], r["type"], r["category"],
                                                  r["amount"], r["description"]))
+        summary = self.manager.monthly_summary(self.current_month.get(), self.current_year.get())
+        self.summary_var.set(
+            f"{self.current_year.get()}-{self.current_month.get():02d}: "
+            f"income {summary['income']:.2f} | expenses {summary['expense']:.2f} | "
+            f"net {summary['net']:.2f}"
+        )
 
-    # ------------------------------------------------------- Budget tab --
+    def _on_delete_transaction(self):
+        selected = self.tree.selection()
+        if not selected:
+            messagebox.showwarning("Delete transaction", "Select a transaction first.")
+            return
+        tx_id = self.tree.item(selected[0], "values")[0]
+        if messagebox.askyesno("Delete transaction", "Delete the selected transaction?"):
+            self.manager.delete_transaction(int(tx_id))
+            self._refresh_list()
+
     def _build_budget_tab(self):
         f = self.tab_budget
         ttk.Label(f, text="Category").grid(row=0, column=0, padx=10, pady=8)
@@ -108,6 +155,14 @@ class ExpenseMateApp(tk.Tk):
         ttk.Entry(f, textvariable=self.budget_cat).grid(row=1, column=0, padx=10)
         ttk.Entry(f, textvariable=self.budget_limit).grid(row=1, column=1, padx=10)
         ttk.Button(f, text="Set Budget", command=self._on_set_budget).grid(row=1, column=2, padx=10)
+
+        ttk.Label(f, text="Month").grid(row=0, column=3, padx=10, pady=8)
+        ttk.Label(f, text="Year").grid(row=0, column=4, padx=10, pady=8)
+        ttk.Spinbox(f, from_=1, to=12, textvariable=self.current_month, width=6).grid(
+            row=1, column=3, padx=10)
+        ttk.Spinbox(f, from_=2000, to=2100, textvariable=self.current_year, width=8).grid(
+            row=1, column=4, padx=10)
+        ttk.Button(f, text="Apply period", command=self._on_period_changed).grid(row=1, column=5, padx=10)
 
         self.alert_box = tk.Text(f, height=18, width=80)
         self.alert_box.grid(row=2, column=0, columnspan=3, padx=10, pady=15)
@@ -136,7 +191,11 @@ class ExpenseMateApp(tk.Tk):
                 f"({a['status'].upper()})\n",
             )
 
-    # ---------------------------------------------------- Analytics tab --
+    def _on_period_changed(self):
+        self._refresh_list()
+        self._refresh_alerts()
+        self._refresh_chart()
+
     def _build_analytics_tab(self):
         f = self.tab_analytics
         ttk.Button(f, text="Refresh Chart", command=self._refresh_chart).pack(pady=5)
@@ -159,7 +218,6 @@ class ExpenseMateApp(tk.Tk):
         canvas.draw()
         canvas.get_tk_widget().pack(fill="both", expand=True)
 
-    # ---------------------------------------------------------- IO tab --
     def _build_io_tab(self):
         f = self.tab_io
         ttk.Button(f, text="Export to CSV", command=self._on_export).pack(pady=10)
