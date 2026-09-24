@@ -93,10 +93,14 @@ class TestExpenseManager(unittest.TestCase):
 
             # import into a fresh manager
             fresh_db_path = os.path.join(tmpdir, "fresh.db")
-            fresh_manager = ExpenseManager(Database(fresh_db_path))
-            result = fresh_manager.import_csv(path)
-            self.assertEqual(result["imported"], 1)
-            self.assertEqual(result["skipped"], 0)
+            db2 = Database(fresh_db_path)
+            try:
+                fresh_manager = ExpenseManager(db2)
+                result = fresh_manager.import_csv(path)
+                self.assertEqual(result["imported"], 1)
+                self.assertEqual(result["skipped"], 0)
+            finally:
+                db2.close()
 
     def test_import_csv_skips_bad_rows_and_reports_errors(self):
         with tempfile.TemporaryDirectory() as tmpdir:
