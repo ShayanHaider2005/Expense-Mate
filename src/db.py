@@ -1,10 +1,3 @@
-"""
-db.py — Data Access Layer (DB Layer)
--------------------------------------
-Responsible ONLY for talking to SQLite. No business rules live here
-(that is Logic Layer's job) — this keeps coupling low between layers,
-per the Layered architecture chosen for ExpenseMate.
-"""
 
 import sqlite3
 import os
@@ -13,8 +6,6 @@ DEFAULT_DB_PATH = os.path.join(os.path.dirname(__file__), "..", "data", "expense
 
 
 class Database:
-    """Thin wrapper around a SQLite connection with schema management."""
-
     def __init__(self, db_path: str = DEFAULT_DB_PATH):
         self.db_path = db_path
         os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
@@ -37,7 +28,7 @@ class Database:
                 type TEXT NOT NULL CHECK(type IN ('income', 'expense')),
                 amount REAL NOT NULL CHECK(amount > 0),
                 category_id INTEGER NOT NULL,
-                date TEXT NOT NULL,          -- ISO format YYYY-MM-DD
+                date TEXT NOT NULL,
                 description TEXT,
                 FOREIGN KEY(category_id) REFERENCES categories(id)
             )
