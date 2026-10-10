@@ -1,10 +1,3 @@
-"""
-logic.py — Business Logic Layer
---------------------------------
-Sits between the UI layer and the DB layer. Contains all validation,
-budget-alert rules, analytics computation, and CSV import/export —
-the "challenging parts" called out in the assignment brief.
-"""
 
 import csv
 from datetime import datetime
@@ -18,7 +11,6 @@ DATE_FORMAT = "%Y-%m-%d"
 
 
 class ValidationError(Exception):
-    """Raised when user-supplied data fails a business rule."""
     pass
 
 
@@ -59,7 +51,6 @@ class ExpenseManager:
         return {"income": income, "expense": expense, "net": income - expense}
 
     def category_breakdown(self, month: int, year: int) -> dict:
-        """Returns {category_name: total_expense} for the given month."""
         rows = self.get_transactions(month, year)
         totals = defaultdict(float)
         for r in rows:
@@ -84,11 +75,6 @@ class ExpenseManager:
         self.db.set_budget(category_id, month, year, limit_amount)
 
     def check_budget_alerts(self, month: int, year: int, warn_threshold: float = 0.8) -> list:
-        """
-        Returns a list of alert dicts:
-        {category, spent, limit, status: 'ok' | 'warning' | 'exceeded'}
-        Challenging-part requirement: budget alerts.
-        """
         budgets = self.db.get_budgets(month, year)
         spending = self.category_breakdown(month, year)
         alerts = []
@@ -110,13 +96,6 @@ class ExpenseManager:
 
     def add_recurring_transaction(self, tx_type: str, amount: float, category: str,
                                    start_date: str, description: str, months: int) -> list:
-        """
-        Adaptive maintenance feature: users asked for a way to log a fixed
-        monthly bill (rent, subscriptions) once instead of re-entering it
-        every month. Creates `months` transactions, one per month, starting
-        at start_date, keeping the same day-of-month (clamped to the last
-        valid day for shorter months, e.g. day 31 in February).
-        """
         if months <= 0:
             raise ValidationError("months must be a positive integer")
         try:
@@ -144,11 +123,6 @@ class ExpenseManager:
         return len(rows)
 
     def import_csv(self, filepath: str) -> dict:
-        """
-        Imports transactions from a CSV with columns:
-        date, type, category, amount, description
-        Returns {"imported": n, "skipped": n, "errors": [messages]}
-        """
         imported, skipped, errors = 0, 0, []
         with open(filepath, "r", newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f)

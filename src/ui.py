@@ -1,11 +1,4 @@
-"""
-ui.py — Presentation Layer
-----------------------------
-Tkinter desktop client. Talks ONLY to the Logic Layer (never to db.py
-directly) so the UI can be swapped (e.g. for a web front-end) without
-touching business rules — this is the low-coupling boundary the
-architecture document describes.
-"""
+
 
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
